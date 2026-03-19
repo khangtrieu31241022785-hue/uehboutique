@@ -8,4 +8,6 @@ import java.util.Optional;
 @Repository
 public interface GuestRepository extends JpaRepository<Guest, Integer> {
     Optional<Guest> findByIdCard(String idCard);
+
+    Optional<Guest> findByPhone(String phone);
 }
