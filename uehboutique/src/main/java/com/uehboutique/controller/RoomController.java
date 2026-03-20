@@ -10,7 +10,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/rooms")
-@CrossOrigin(origins = "*") // Cho phép Frontend (React/Vue) gọi API mà không bị chặn lỗi CORS
+@CrossOrigin(origins = "http://localhost:5173") // Cho phép Frontend (React/Vue) gọi API mà không bị chặn lỗi CORS
 @RequiredArgsConstructor
 public class RoomController {
     private final RoomService roomService;
@@ -45,6 +45,5 @@ public class RoomController {
             return ResponseEntity.badRequest().body("Error add room: " + e.getMessage());
         }
     }
-
 
 }
