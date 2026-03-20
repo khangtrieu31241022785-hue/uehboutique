@@ -43,6 +43,16 @@ public class BookingController {
             return ResponseEntity.badRequest().body("Lỗi khi lấy danh sách: " + e.getMessage());
         }
     }
+
+    @PutMapping("/{bookingId}/transfer")
+    public ResponseEntity<?> transferRoom(@PathVariable Integer bookingId, @RequestParam Integer newRoomId) {
+        try {
+            return ResponseEntity.ok(bookingService.transferRoom(bookingId, newRoomId));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error transferring room: " + e.getMessage());
+        }
+    }
+
 }
 
 

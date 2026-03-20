@@ -57,4 +57,32 @@ public class BookingService {
     public List<Booking> getAllBookings() {
         return bookingRepository.findAll();
     }
+
+    @Transactional
+    public Booking transferRoom(Integer bookingId, Integer roomId) {
+        // 1. Tìm thông tin Booking hiện tại
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking not found" + bookingId));
+        if("Check-out".equals(booking.getStatus())){
+            throw new RuntimeException("Booking is already checked out, can not transfer room");
+        }
+        // 2. Tìm thông tin Phòng mới
+        Room newRoom = roomRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("Room not found"));
+        if(!"Empty".equals(newRoom.getStatus())){
+            throw new RuntimeException("New Room (" + newRoom.getRoomNumber() + ") is not empty, currently in the state: " + newRoom.getStatus());
+        }
+        // 3. Xử lý Phòng cũ: Đổi thành Dirty chờ dọn dẹp
+        Room oldRoom = booking.getRoom();
+        oldRoom.setStatus("Dirty");
+        roomRepository.save(oldRoom);
+
+        // 4. Xử lý Phòng mới: Đổi thành Currently (Đang ở)
+        newRoom.setStatus("Currently");
+        roomRepository.save(newRoom);
+
+        // 5. Cập nhật lại phòng mới cho Booking
+        booking.setRoom(newRoom);
+        return bookingRepository.save(booking);
+    }
 }
