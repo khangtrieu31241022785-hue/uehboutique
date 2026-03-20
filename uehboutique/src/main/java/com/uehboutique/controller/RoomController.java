@@ -16,13 +16,35 @@ public class RoomController {
     private final RoomService roomService;
 
     @GetMapping
-    public ResponseEntity<List<Room>> getAllRooms() {
+    public ResponseEntity<?> getAllRooms() {
         return ResponseEntity.ok(roomService.getAllRooms());
     }
 
     @GetMapping("/status")
-    public ResponseEntity<List<Room>> getAllRoomStatus(@RequestParam String status) {
+    public ResponseEntity<?> getAllRoomStatus(@RequestParam String status) {
         return ResponseEntity.ok(roomService.getRoomsByStatus(status));
     }
+
+    @PutMapping("/{roomId}/clean")
+    public ResponseEntity<?> cleanRoom(@PathVariable Integer roomId) {
+        try{
+            return ResponseEntity.ok(roomService.cleanRoom(roomId));
+        }
+        catch (Exception e){
+            return ResponseEntity.badRequest().body("Mistakes made while cleaning the room: " + e.getMessage());
+        }
+    }
+
+    // 2. Thêm phòng mới (VD: Khách sạn xây thêm phòng 107)
+    // Dùng @RequestBody vì truyền một cục JSON
+    @PostMapping
+    public ResponseEntity<?> addRoom(@RequestBody Room room) {
+        try {
+            return ResponseEntity.ok(roomService.addRoom(room));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error add room: " + e.getMessage());
+        }
+    }
+
 
 }
