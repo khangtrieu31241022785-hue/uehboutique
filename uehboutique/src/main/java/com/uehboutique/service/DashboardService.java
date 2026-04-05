@@ -28,7 +28,7 @@ public class DashboardService {
         List<Invoice> allInvoices = invoiceRepository.findAll();
 
         java.math.BigDecimal todayRevenue = allInvoices.stream()
-                .filter(inv -> inv.getPaymentDate() != null && inv.getPaymentDate().equals(today))
+                .filter(inv -> inv.getPaymentDate() != null && inv.getPaymentDate().toLocalDate().equals(today))
                 .map(Invoice::getTotalAmount) // Lấy ra danh sách các cục BigDecimal
                 .filter(java.util.Objects::nonNull) // Loại bỏ invoice nào bị null tiền (cho chắc)
                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add); // Cộng dồn lại
