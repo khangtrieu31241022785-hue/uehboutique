@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom'; // Giữ lại 1 dòng import
+import { useNavigate } from 'react-router-dom';
 
 function BookingInfo() {
     const navigate = useNavigate();
@@ -18,6 +18,9 @@ function BookingInfo() {
     // State cho Bill Modal
     const [showBill, setShowBill] = useState(false);
     const [invoiceData, setInvoiceData] = useState(null);
+
+    // --- STATE MỚI ĐỂ CHỌN PHƯƠNG THỨC THANH TOÁN ---
+    const [paymentMethod, setPaymentMethod] = useState('Cash');
 
     // --- STATE MỚI CHO TÍNH NĂNG KHÁCH HÀNG (THÊM/SỬA) ---
     const [showGuestModal, setShowGuestModal] = useState(false);
@@ -83,16 +86,16 @@ function BookingInfo() {
                 triggerStackedToast('success', 'Cập Nhật Thành Công', `Đã sửa: ${guestForm.guestName}`);
             } else {
                 // Trường hợp THÊM MỚI: Loại bỏ guestId để tránh lỗi ép kiểu ở Backend
-                const { guestId, ...newGuestData } = guestForm; 
-                
+                const { guestId, ...newGuestData } = guestForm;
+
                 await axios.post(`http://localhost:8080/api/guests`, newGuestData);
                 triggerStackedToast('success', 'Thêm Khách Thành Công', `Đã thêm ${guestForm.guestName}`);
             }
-            
+
             setShowGuestModal(false);
             fetchBookings(); // Tải lại bảng
-        } 
-        catch (err) 
+        }
+        catch (err)
         {
             console.error("Chi tiết lỗi:", err.response?.data);
             triggerStackedToast('error', 'Lỗi Hệ Thống', err.response?.data?.message || 'Dữ liệu không hợp lệ.');
@@ -100,17 +103,6 @@ function BookingInfo() {
     };
 
     // --- CÁC HÀM XỬ LÝ THANH TOÁN & INVOICE ---
-    const handleTogglePayment = (id) => {
-        const updatedBookings = bookings.map(booking => {
-            if (booking.bookingId === id) {
-                const isPaid = booking.status === 'Check-out' || booking.status === 'Checked-out';
-                return { ...booking, status: isPaid ? 'Checked-in' : 'Check-out' };
-            }
-            return booking;
-        });
-        setBookings(updatedBookings);
-    };
-
     const handleInvoiceClick = async (booking) => {
         try {
             const res = await axios.get(`http://localhost:8080/api/invoices/preview/${booking.bookingId}`);
@@ -128,6 +120,8 @@ function BookingInfo() {
                 isPaid: booking.status === 'Check-out' || booking.status === 'Checked-out'
             });
 
+            // Reset phương thức thanh toán về Cash mỗi khi mở hóa đơn mới
+            setPaymentMethod('Cash');
             setShowBill(true);
         } catch (err) {
             triggerStackedToast('error', 'Lỗi tải hóa đơn', err.response?.data || "Server không phản hồi.");
@@ -136,24 +130,27 @@ function BookingInfo() {
 
     const handleCompletePayment = async () => {
         try {
-            await axios.post(`http://localhost:8080/api/invoices/checkout/${invoiceData.bookingId}?paymentMethod=Cash`);
-            
+            // Nối paymentMethod đã chọn vào đuôi API
+            await axios.post(`http://localhost:8080/api/invoices/checkout/${invoiceData.bookingId}?paymentMethod=${paymentMethod}`);
+
             setInvoiceData(prev => ({ ...prev, isPaid: true }));
+
+            // Hiển thị toast thông báo
             triggerStackedToast('success', 'Thanh Toán Thành Công!', 'Đã lưu hóa đơn sang mục Quản Lý Hóa Đơn.');
             fetchBookings(); // Làm mới dữ liệu bảng nền
+            setShowBill(false); // Đóng Modal
 
-            // Đóng Modal và chuyển hướng
-            setShowBill(false);
-            navigate('/invoices', { state: { newInvoiceId: invoiceData.bookingId } }); 
-            
+            // Delay 1.5 giây để người dùng kịp nhìn thấy Toast Message rồi mới chuyển trang
+            setTimeout(() => {
+                navigate('/invoices', { state: { newInvoiceId: invoiceData.bookingId } });
+            }, 1500);
+
         } catch (err) {
             triggerStackedToast('error', 'Lỗi Thanh Toán', err.response?.data || "Không thể lưu hóa đơn vào DB.");
         }
     };
 
-    // Xử lý Lọc và Phân trang (Giả định bạn có logic filter, ở đây đang thiếu biến filteredBookings,
-    // Mình đang gán tạm bằng `bookings` để tránh lỗi, nếu bạn có hàm filter thì sửa lại nhé)
-    const filteredBookings = bookings; // Thêm dòng này để phòng hờ lỗi undefined
+    const filteredBookings = bookings;
 
     const sortedBookings = [...filteredBookings].sort((a, b) => {
         const roomA = a.room?.roomNumber ? String(a.room.roomNumber) : "";
@@ -173,7 +170,6 @@ function BookingInfo() {
     return (
         <div style={{ padding: '20px', fontFamily: "'Segoe UI', Tahoma, sans-serif", position: 'relative', minHeight: '95vh' }}>
 
-            {/* --- GIAO DIỆN HỆ THỐNG TOAST XẾP CHỒNG --- */}
             {toasts.length > 0 && (
                 <div style={toastContainerStyle}>
                     {toasts.map(t => (
@@ -218,30 +214,49 @@ function BookingInfo() {
                     </tr>
                     </thead>
                     <tbody>
-                    {currentBookings.length > 0 ? currentBookings.map((booking, index) => (
-                        <tr key={booking.bookingId || index}>
-                            <td style={{...tdStyle, fontWeight: 'bold'}}>{booking.guest?.guestId}</td>
-                            <td style={{...tdStyle, textAlign: 'left'}}>{booking.guest?.guestName}</td>
-                            <td style={tdStyle}>{booking.guest?.phone}</td>
-                            <td style={tdStyle}>{booking.checkInDate}</td>
-                            <td style={tdStyle}>{booking.checkOutDate || '---'}</td>
-                            <td style={{...tdStyle, color: '#f39c12', fontWeight: 'bold'}}>{booking.room?.roomNumber}</td>
-                            <td style={tdStyle}>
-                                <input
-                                    type="checkbox"
-                                    checked={booking.status === 'Check-out' || booking.status === 'Checked-out'}
-                                    onChange={() => handleTogglePayment(booking.bookingId)}
-                                    style={{ width: '18px', height: '18px', accentColor: '#125c61', cursor: 'pointer' }}
-                                />
-                            </td>
-                            <td style={tdStyle}>
-                                <button onClick={() => handleInvoiceClick(booking)} style={btnInvoiceStyle}>Invoice</button>
-                            </td>
-                            <td style={tdStyle}>
-                                <span onClick={() => openEditModal(booking.guest)} style={{ cursor: 'pointer', color: '#f39c12', fontSize: '18px' }}>✏️</span>
-                            </td>
-                        </tr>
-                    )) : (
+                    {currentBookings.length > 0 ? currentBookings.map((booking, index) => {
+                        const isPaid = booking.status === 'Check-out' || booking.status === 'Checked-out';
+                        return (
+                            <tr key={booking.bookingId || index}>
+                                <td style={{...tdStyle, fontWeight: 'bold'}}>{booking.guest?.guestId}</td>
+                                <td style={{...tdStyle, textAlign: 'left'}}>{booking.guest?.guestName}</td>
+                                <td style={tdStyle}>{booking.guest?.phone}</td>
+                                <td style={tdStyle}>{booking.checkInDate}</td>
+                                <td style={tdStyle}>{booking.checkOutDate || '---'}</td>
+                                <td style={{...tdStyle, color: '#f39c12', fontWeight: 'bold'}}>{booking.room?.roomNumber}</td>
+
+                                {/* --- CẬP NHẬT CỘT THANH TOÁN --- */}
+                                <td style={tdStyle}>
+                                    {isPaid ? (
+                                        <span style={{
+                                            color: '#2ecc71', fontWeight: 'bold',
+                                            padding: '4px 10px', borderRadius: '20px',
+                                            backgroundColor: '#eafaf1', fontSize: '12px',
+                                            display: 'inline-block'
+                                        }}>
+                                            Đã hoàn thành
+                                        </span>
+                                    ) : (
+                                        <span style={{
+                                            color: '#e74c3c', fontWeight: 'bold',
+                                            padding: '4px 10px', borderRadius: '20px',
+                                            backgroundColor: '#fceae8', fontSize: '12px',
+                                            display: 'inline-block'
+                                        }}>
+                                            Chưa thanh toán
+                                        </span>
+                                    )}
+                                </td>
+
+                                <td style={tdStyle}>
+                                    <button onClick={() => handleInvoiceClick(booking)} style={btnInvoiceStyle}>Invoice</button>
+                                </td>
+                                <td style={tdStyle}>
+                                    <span onClick={() => openEditModal(booking.guest)} style={{ cursor: 'pointer', color: '#f39c12', fontSize: '18px' }}>✏️</span>
+                                </td>
+                            </tr>
+                        )
+                    }) : (
                         <tr><td colSpan="10" style={{...tdStyle, color: 'red'}}>Chưa có dữ liệu phòng hoặc không tìm thấy!</td></tr>
                     )}
                     </tbody>
@@ -256,10 +271,8 @@ function BookingInfo() {
                 </div>
             )}
 
-            {/* NÚT ADD GUEST NỔI (FAB) */}
             <button onClick={openAddModal} style={fabStyle} title="Thêm khách mới">+</button>
 
-            {/* --- MODAL THÊM/SỬA KHÁCH HÀNG --- */}
             {showGuestModal && (
                 <div style={overlayStyle}>
                     <div style={modalStyle}>
@@ -292,7 +305,6 @@ function BookingInfo() {
                 </div>
             )}
 
-            {/* --- MODAL INVOICE --- */}
             {showBill && invoiceData && (
                 <div style={overlayStyle}>
                     <div style={billModalStyle}>
@@ -331,7 +343,20 @@ function BookingInfo() {
                             </tbody>
                         </table>
 
-                        <div style={{ marginTop: '20px', borderTop: '2px solid #333', paddingTop: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ marginTop: '15px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#555' }}>Hình thức:</span>
+                            <select
+                                value={paymentMethod}
+                                onChange={(e) => setPaymentMethod(e.target.value)}
+                                disabled={invoiceData.isPaid}
+                                style={{ padding: '6px 12px', borderRadius: '4px', border: '1px solid #ccc', outline: 'none', cursor: invoiceData.isPaid ? 'not-allowed' : 'pointer' }}
+                            >
+                                <option value="Cash">Tiền mặt (Cash)</option>
+                                <option value="Card">Thẻ/Chuyển khoản</option>
+                            </select>
+                        </div>
+
+                        <div style={{ marginTop: '15px', borderTop: '2px solid #333', paddingTop: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: '18px', fontWeight: 'bold' }}>TỔNG CỘNG:</span>
                             <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#e74c3c' }}>{formatCurrency(invoiceData.grandTotal)}</span>
                         </div>
